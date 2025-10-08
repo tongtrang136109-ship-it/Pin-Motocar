@@ -1,0 +1,666 @@
+import React, { useState, useEffect } from 'react';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import Sidebar from './components/Sidebar';
+import Dashboard from './components/Dashboard';
+import ServiceManager from './components/ServiceManager';
+import InventoryManager from './components/InventoryManager';
+import CustomerManager from './components/CustomerManager';
+import AiAssistant from './components/AiAssistant';
+import SalesManager from './components/SalesManager';
+import UserManager from './components/UserManager';
+import RevenueReport from './components/RevenueReport';
+import InventoryReport from './components/InventoryReport';
+import type { Part, Customer, InventoryTransaction, WorkOrder, CartItem, User, StoreSettings, Supplier, PaymentSource, CashTransaction, Department, FixedAsset, CapitalInvestment, PinMaterial, PinBOM, ProductionOrder, PinProduct, PinCartItem, PinSale, PinCustomer } from './types';
+import Header from './components/common/Header';
+import Login from './components/Login';
+import CreateGoodsReceipt from './components/CreateGoodsReceipt';
+import CashflowManager from './components/CashflowManager';
+import AssetManager from './components/AssetManager';
+import ExecutiveSummary from './components/ExecutiveSummary';
+import AppSelector from './components/AppSelector';
+import PinCorpApp from './components/pincorp/PinCorpApp';
+
+// Mock data moved here for centralized state management
+const mockWorkOrdersData: WorkOrder[] = [
+    { 
+        id: 'S001', 
+        creationDate: '2024-07-30',
+        customerName: 'Nguyễn Văn A', 
+        customerPhone: '0901234567',
+        vehicleModel: 'Honda Air Blade', 
+        licensePlate: '59-A1 123.45',
+        issueDescription: 'Bảo dưỡng định kỳ, thay nhớt',
+        technicianName: 'Lê Minh Kỹ Thuật',
+        status: 'Trả máy', 
+        total: 580000,
+        branchId: 'main',
+        laborCost: 130000,
+        processingType: 'Sửa trực tiếp',
+        customerQuote: 580000,
+        partsUsed: [
+            { partId: 'P002', partName: 'Nhớt Motul 300V', sku: 'MOTUL-300V-1L', quantity: 1, price: 450000 }
+        ],
+        notes: 'Khách yêu cầu kiểm tra thêm hệ thống điện và sạc.',
+        paymentStatus: 'paid',
+        paymentMethod: 'cash',
+        paymentDate: '2024-07-30',
+    },
+    { 
+        id: 'S002', 
+        creationDate: '2024-07-29',
+        customerName: 'Trần Thị B', 
+        customerPhone: '0987654321',
+        vehicleModel: 'Yamaha Exciter',
+        licensePlate: '72-B2 678.90',
+        issueDescription: 'Phanh sau không ăn, có tiếng kêu',
+        technicianName: 'Lê Minh Kỹ Thuật',
+        status: 'Đang sửa', 
+        total: 120000,
+        branchId: 'main',
+        laborCost: 0,
+        processingType: 'Sửa trực tiếp',
+        customerQuote: 370000,
+        partsUsed: [
+             { partId: 'P004', partName: 'Má phanh Bendix', sku: 'BENDIX-MD27', quantity: 1, price: 120000 }
+        ],
+        notes: 'Cần thay má phanh gấp.',
+        paymentStatus: 'unpaid',
+    },
+];
+
+const mockPartsData: Part[] = [
+    { id: 'P001', name: 'Bugi NGK Iridium', sku: 'NGK-CPR8EAIX-9', stock: { main: 10, q2: 5 }, price: 80000, sellingPrice: 110000, warrantyPeriod: '6 tháng' },
+    { id: 'P002', name: 'Nhớt Motul 300V', sku: 'MOTUL-300V-1L', stock: { main: 5, q2: 3 }, price: 450000, sellingPrice: 520000 },
+    { id: 'P003', name: 'Lốp Michelin City Grip 2', sku: 'MCH-CG2-909014', stock: { main: 4, q2: 0 }, price: 950000, sellingPrice: 1100000, warrantyPeriod: '12 tháng' },
+    { id: 'P004', name: 'Má phanh Bendix', sku: 'BENDIX-MD27', stock: { main: 15, q2: 7 }, price: 120000, sellingPrice: 150000, warrantyPeriod: '3 tháng' },
+    { id: 'P005', name: 'Dung dịch súc rửa động cơ', sku: 'LIQUIMOLY-2427', stock: { main: 20, q2: 10 }, price: 150000, sellingPrice: 180000, expiryDate: '2024-08-25' },
+    { id: 'P006', name: 'Lọc gió K&N', sku: 'KN-YA-1208', stock: { main: 8, q2: 4 }, price: 750000, sellingPrice: 850000, expiryDate: '2026-01-01' },
+];
+
+const mockCustomersData: Customer[] = [
+    { id: 'C001', name: 'Nguyễn Văn A', phone: '0901234567', vehicle: 'Honda Air Blade 2022', licensePlate: '59-A1 123.45', loyaltyPoints: 150 },
+    { id: 'C002', name: 'Trần Thị B', phone: '0987654321', vehicle: 'Yamaha Exciter 155', licensePlate: '72-B2 678.90', loyaltyPoints: 320 },
+    { id: 'C003', name: 'Lê Hoàng Long', phone: '0912345678', vehicle: 'Honda SH 150i', licensePlate: '29-C1 555.55', loyaltyPoints: 80 },
+];
+
+const mockTransactionsData: InventoryTransaction[] = [
+    { id: 'T001', type: 'Nhập kho', partId: 'P002', partName: 'Nhớt Motul 300V', quantity: 10, date: '2024-07-29', notes: 'Nhập từ nhà cung cấp A', unitPrice: 450000, totalPrice: 4500000, branchId: 'main' },
+    { id: 'T002', type: 'Xuất kho', partId: 'P001', partName: 'Bugi NGK Iridium', quantity: 2, date: '2024-07-28', notes: 'Sử dụng cho đơn WO002', unitPrice: 110000, totalPrice: 220000, branchId: 'main' },
+    { id: 'T003', type: 'Xuất kho', partId: 'P004', partName: 'Má phanh Bendix', quantity: 1, date: '2024-07-28', notes: 'Bán lẻ cho khách vãng lai', unitPrice: 150000, totalPrice: 150000, branchId: 'main', saleId: 'SALE-123' },
+    { id: 'T004', type: 'Nhập kho', partId: 'P003', partName: 'Lốp Michelin City Grip 2', quantity: 5, date: '2024-07-27', notes: 'Nhập từ nhà cung cấp B', unitPrice: 950000, totalPrice: 4750000, branchId: 'main' },
+    { id: 'T005', type: 'Nhập kho', partId: 'P001', partName: 'Bugi NGK Iridium', quantity: 20, date: '2024-03-26', notes: 'Nhập hàng định kỳ', unitPrice: 80000, totalPrice: 1600000, branchId: 'q2' },
+];
+
+const mockUsersData: User[] = [
+    { 
+        id: 'U001', 
+        name: 'Nguyễn Xuân Nhạn',
+        loginPhone: 'chucuahang', // Kept for compatibility with old login
+        password: 'password123', 
+        departmentIds: ['dept_admin'], 
+        status: 'active',
+        email: 'xuan.nhan@example.com',
+        creationDate: '2023-01-15'
+    },
+    { 
+        id: 'U002', 
+        name: 'Lê Minh Kỹ Thuật',
+        loginPhone: 'kythuat01', 
+        password: 'password123', 
+        departmentIds: ['dept_tech'], 
+        status: 'active',
+        email: 'minh.kt@example.com',
+        creationDate: '2023-02-20'
+    },
+    { 
+        id: 'U003', 
+        name: 'Trần Thị Bán Hàng',
+        loginPhone: 'banhang01', 
+        password: 'password123', 
+        departmentIds: [], 
+        status: 'active',
+        email: 'thi.bh@example.com',
+        creationDate: '2023-03-10'
+    },
+];
+
+const mockDepartmentsData: Department[] = [
+    {
+        id: 'dept_tech',
+        name: 'Kỹ thuật viên',
+        description: 'Thợ sửa chữa',
+        permissions: {
+            service: { level: 'all', details: {} },
+            inventory: { level: 'restricted', details: { view: true, add: false, edit: false, delete: false } },
+            sales: { level: 'none', details: {} },
+            userManager: false,
+        }
+    },
+    {
+        id: 'dept_admin',
+        name: 'Quản trị',
+        description: 'Có thể xem được tất cả hoạt động của cửa hàng',
+        permissions: {
+            service: { level: 'all', details: {} },
+            inventory: { level: 'all', details: {} },
+            sales: { level: 'all', details: {} },
+            userManager: true,
+        }
+    }
+];
+
+
+const mockStoreSettingsData: StoreSettings = {
+    name: "MotoCare Pro",
+    address: "123 Đường ABC, Quận 1, TP. HCM",
+    phone: "0987.654.321",
+    bankName: "Vietcombank",
+    bankAccountNumber: "1234567890",
+    bankAccountHolder: "MOTO CARE PRO",
+    branches: [
+        { id: 'main', name: 'Chi nhánh Chính' },
+        { id: 'q2', name: 'Chi nhánh Quận 2' },
+    ]
+};
+
+const mockSuppliersData: Supplier[] = [
+    { id: 'SUP001', name: 'Nguyễn Xuân Nhạn', phone: '0915449550' },
+    { id: 'SUP002', name: 'Cty TNHH TM-DV Phương Thuỷ', phone: '0907855077' },
+    { id: 'SUP003', name: 'Cty TM Song Đại Long', phone: '0287777369' },
+    { id: 'SUP004', name: 'Kho sỉ Thập Nhất Phong', phone: '0988123456' },
+];
+
+const mockPaymentSourcesData: PaymentSource[] = [
+    { id: 'cash', name: 'Tiền mặt', balance: { main: 10000000, q2: 4373238 }, isDefault: true },
+    { id: 'bank', name: 'Tài khoản ngân hàng', balance: { main: 40000000, q2: 10000000 } },
+];
+
+const mockCashTransactionsData: CashTransaction[] = [];
+
+const mockCapitalInvestmentsData: CapitalInvestment[] = [
+    { id: 'CAP001', date: '2023-01-10', amount: 200000000, description: 'Vốn góp ban đầu', source: 'Vốn chủ sở hữu', branchId: 'main' },
+    { id: 'CAP002', date: '2023-05-20', amount: 150000000, description: 'Vay ngân hàng Techcombank mua máy móc', source: 'Vay ngân hàng', interestRate: 8.5, branchId: 'main' },
+];
+
+const mockPinMaterialsData: PinMaterial[] = [
+    { id: 'PIN-CELL-A', name: 'Cell Pin 18650 Lishen 2000mAh', sku: 'LS-18650-2000', unit: 'cái', purchasePrice: 25000, stock: 500 },
+    { id: 'PIN-CELL-B', name: 'Cell Pin 21700 Samsung 40T', sku: 'SS-21700-40T', unit: 'cái', purchasePrice: 85000, stock: 200 },
+    { id: 'BMS-3S-40A', name: 'Mạch bảo vệ 3S 40A', sku: 'BMS-3S40A', unit: 'cái', purchasePrice: 45000, stock: 150 },
+    { id: 'BMS-4S-100A', name: 'Mạch bảo vệ 4S 100A cân bằng', sku: 'BMS-4S100A-CB', unit: 'cái', purchasePrice: 120000, stock: 80 },
+    { id: 'NICKEL-015', name: 'Kẽm hàn 0.15mm', sku: 'NICKEL-0.15MM', unit: 'mét', purchasePrice: 5000, stock: 100 },
+    { id: 'CASE-3S-STD', name: 'Vỏ nhựa 3S tiêu chuẩn', sku: 'CASE-3S-STD', unit: 'cái', purchasePrice: 15000, stock: 300 },
+];
+
+const mockPinBOMsData: PinBOM[] = [
+    {
+        id: 'BOM-3S-4AH',
+        productName: 'Khối Pin 3S-12.6V 4000mAh (LS)',
+        productSku: 'PIN-3S-4AH-LS',
+        materials: [
+            { materialId: 'PIN-CELL-A', quantity: 6 }, // 3S2P config
+            { materialId: 'BMS-3S-40A', quantity: 1 },
+            { materialId: 'NICKEL-015', quantity: 0.3 }, // 30cm kẽm
+            { materialId: 'CASE-3S-STD', quantity: 1 },
+        ],
+        notes: 'Sử dụng cell Lishen 2000mAh, mạch 40A tiêu chuẩn.'
+    }
+];
+
+const mockProductionOrdersData: ProductionOrder[] = [
+    {
+        id: 'PO-001',
+        creationDate: '2024-07-31',
+        bomId: 'BOM-3S-4AH',
+        productName: 'Khối Pin 3S-12.6V 4000mAh (LS)',
+        quantityProduced: 10,
+        status: 'Hoàn thành',
+        materialsCost: 1615000, // Calculated: (25000*6 + 45000*1 + 5000*0.3 + 15000*1) * 10
+        additionalCosts: [{ description: 'Nhân công', amount: 100000 }],
+        totalCost: 1715000,
+        notes: 'Lô sản xuất đầu tiên.',
+        userName: 'Nguyễn Xuân Nhạn'
+    }
+];
+
+const mockPinProductsData: PinProduct[] = [
+    {
+        id: 'PIN-3S-4AH-LS',
+        name: 'Khối Pin 3S-12.6V 4000mAh (LS)',
+        sku: 'PIN-3S-4AH-LS',
+        stock: 10,
+        costPrice: 171500, // totalCost / quantity
+        sellingPrice: 240000
+    }
+];
+
+const mockPinCustomersData: PinCustomer[] = [
+    { id: 'PINCUST-001', name: 'Công ty TNHH Năng Lượng Xanh', phone: '02831234567', address: '123 Võ Văn Tần, P. 6, Q. 3, TP. HCM' },
+    { id: 'PINCUST-002', name: 'Anh Minh - Sửa xe', phone: '0908765432', address: '456 Lê Văn Sỹ, P. 14, Q. 3, TP. HCM' },
+];
+
+
+// Custom hook to manage state with localStorage
+function useLocalStorageState<T>(key: string, defaultValue: T | (() => T)): [T, React.Dispatch<React.SetStateAction<T>>] {
+  const [state, setState] = useState<T>(() => {
+    try {
+      const storedValue = window.localStorage.getItem(key);
+      if (storedValue) {
+        return JSON.parse(storedValue);
+      }
+    } catch (error) {
+      console.error(`Error reading localStorage key “${key}”:`, error);
+    }
+    // If defaultValue is a function, call it to get the initial value
+    return defaultValue instanceof Function ? defaultValue() : defaultValue;
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(key, JSON.stringify(state));
+    } catch (error) {
+      console.error(`Error writing to localStorage key “${key}”:`, error);
+    }
+  }, [key, state]);
+
+  return [state, setState];
+}
+
+export type Theme = 'light' | 'dark' | 'system';
+
+const App: React.FC = () => {
+  // MotoCare Pro State
+  const [workOrders, setWorkOrders] = useLocalStorageState<WorkOrder[]>('motocare_workOrders', mockWorkOrdersData);
+  const [parts, setParts] = useLocalStorageState<Part[]>('motocare_parts', mockPartsData);
+  const [customers, setCustomers] = useLocalStorageState<Customer[]>('motocare_customers', mockCustomersData);
+  const [transactions, setTransactions] = useLocalStorageState<InventoryTransaction[]>('motocare_transactions', mockTransactionsData);
+  const [users, setUsers] = useLocalStorageState<User[]>('motocare_users', mockUsersData);
+  const [departments, setDepartments] = useLocalStorageState<Department[]>('motocare_departments', mockDepartmentsData);
+  const [storeSettings, setStoreSettings] = useLocalStorageState<StoreSettings>('motocare_storeSettings', mockStoreSettingsData);
+  const [suppliers, setSuppliers] = useLocalStorageState<Supplier[]>('motocare_suppliers', mockSuppliersData);
+  const [paymentSources, setPaymentSources] = useLocalStorageState<PaymentSource[]>('motocare_paymentSources', mockPaymentSourcesData);
+  const [cashTransactions, setCashTransactions] = useLocalStorageState<CashTransaction[]>('motocare_cashTransactions', mockCashTransactionsData);
+  const [fixedAssets, setFixedAssets] = useLocalStorageState<FixedAsset[]>('motocare_fixedAssets', []);
+  const [capitalInvestments, setCapitalInvestments] = useLocalStorageState<CapitalInvestment[]>('motocare_capitalInvestments', mockCapitalInvestmentsData);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  
+  // PinCorp State
+  const [pinMaterials, setPinMaterials] = useLocalStorageState<PinMaterial[]>('pincorp_materials', mockPinMaterialsData);
+  const [pinBOMs, setPinBOMs] = useLocalStorageState<PinBOM[]>('pincorp_boms', mockPinBOMsData);
+  const [productionOrders, setProductionOrders] = useLocalStorageState<ProductionOrder[]>('pincorp_productionOrders', mockProductionOrdersData);
+  const [pinProducts, setPinProducts] = useLocalStorageState<PinProduct[]>('pincorp_products', mockPinProductsData);
+  const [pinCartItems, setPinCartItems] = useLocalStorageState<PinCartItem[]>('pincorp_cartItems', []);
+  const [pinSales, setPinSales] = useLocalStorageState<PinSale[]>('pincorp_sales', []);
+  const [pinCustomers, setPinCustomers] = useLocalStorageState<PinCustomer[]>('pincorp_customers', mockPinCustomersData);
+
+
+  // Global App State
+  const [theme, setTheme] = useLocalStorageState<Theme>('motocare_theme', 'system');
+  // Tạm thời khóa đăng nhập để dễ chỉnh sửa
+  const [isAuthenticated, setIsAuthenticated] = useLocalStorageState<boolean>('motocare_isAuthenticated', true);
+  const [currentUserId, setCurrentUserId] = useLocalStorageState<string | null>('motocare_currentUserId', 'U001'); // Mặc định là user admin
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [currentBranchId, setCurrentBranchId] = useLocalStorageState<string>('motocare_currentBranchId', 'main');
+  const [selectedApp, setSelectedApp] = useLocalStorageState<string | null>('motocare_selectedApp', null);
+
+  const currentUser = users.find(u => u.id === currentUserId);
+  
+  // Theme management effect
+    useEffect(() => {
+        const root = window.document.documentElement;
+        const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        
+        root.classList.toggle('dark', isDark);
+
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        const handleChange = () => {
+            if (theme === 'system') {
+                root.classList.toggle('dark', mediaQuery.matches);
+            }
+        };
+
+        mediaQuery.addEventListener('change', handleChange);
+        return () => mediaQuery.removeEventListener('change', handleChange);
+    }, [theme]);
+
+
+  // Ensure currentBranchId is valid
+  useEffect(() => {
+    if (!storeSettings.branches.some(b => b.id === currentBranchId)) {
+        setCurrentBranchId(storeSettings.branches[0]?.id || 'main');
+    }
+  }, [currentBranchId, storeSettings.branches, setCurrentBranchId]);
+
+  const handleLogin = (loginIdentifier: string, password: string): boolean => {
+    const user = users.find(u => (u.loginPhone === loginIdentifier || u.name === loginIdentifier) && u.password === password && u.status === 'active');
+    if (user) {
+      setCurrentUserId(user.id);
+      setIsAuthenticated(true);
+      setSelectedApp(null); // Force app selection after login
+      return true;
+    }
+    return false;
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setCurrentUserId(null);
+    setSelectedApp(null);
+  };
+
+  const setCurrentUser = (user: User) => {
+    if (user) {
+        setCurrentUserId(user.id);
+    }
+  };
+  
+  // Effect to handle inconsistent state (e.g. authenticated but no user)
+  useEffect(() => {
+    if(isAuthenticated && !currentUser) {
+        handleLogout();
+    }
+  }, [isAuthenticated, currentUser]);
+
+  const addProductionOrder = (order: ProductionOrder, bom: PinBOM) => {
+    // 1. Add new order to the list
+    setProductionOrders(prev => [order, ...prev]);
+
+    // 2. Deduct materials from stock
+    setPinMaterials(prevMaterials => {
+      const materialsToUpdate = new Map<string, number>();
+      bom.materials.forEach(bomMaterial => {
+        const requiredQty = bomMaterial.quantity * order.quantityProduced;
+        materialsToUpdate.set(bomMaterial.materialId, requiredQty);
+      });
+
+      return prevMaterials.map(material => {
+        if (materialsToUpdate.has(material.id)) {
+          const newStock = material.stock - materialsToUpdate.get(material.id)!;
+          return { ...material, stock: newStock >= 0 ? newStock : 0 };
+        }
+        return material;
+      });
+    });
+  };
+
+  const updateProductionOrderStatus = (orderId: string, newStatus: ProductionOrder['status']) => {
+    const orderToUpdate = productionOrders.find(o => o.id === orderId);
+    if (!orderToUpdate || orderToUpdate.status === newStatus) return;
+
+    // Revert stock if cancelling an active order
+    if (newStatus === 'Đã hủy' && orderToUpdate.status !== 'Đã hủy') {
+        const bomUsed = pinBOMs.find(b => b.id === orderToUpdate.bomId);
+        if (bomUsed) {
+            setPinMaterials(prevMaterials => {
+                const materialsToAddBack = new Map<string, number>();
+                bomUsed.materials.forEach(bomMaterial => {
+                    const returnedQty = bomMaterial.quantity * orderToUpdate.quantityProduced;
+                    materialsToAddBack.set(bomMaterial.materialId, returnedQty);
+                });
+
+                return prevMaterials.map(material => {
+                    if (materialsToAddBack.has(material.id)) {
+                        return { ...material, stock: material.stock + materialsToAddBack.get(material.id)! };
+                    }
+                    return material;
+                });
+            });
+        }
+    }
+    
+    // Add to finished products if completed
+    if (newStatus === 'Hoàn thành' && orderToUpdate.status !== 'Hoàn thành') {
+        const bomUsed = pinBOMs.find(b => b.id === orderToUpdate.bomId);
+        if (bomUsed) {
+            const costPerUnit = orderToUpdate.totalCost / orderToUpdate.quantityProduced;
+            setPinProducts(prev => {
+                const existingProductIndex = prev.findIndex(p => p.sku === bomUsed.productSku);
+                if (existingProductIndex > -1) {
+                    const updatedProducts = [...prev];
+                    const existingProduct = updatedProducts[existingProductIndex];
+                    existingProduct.stock += orderToUpdate.quantityProduced;
+                    // Update cost price to latest production cost
+                    existingProduct.costPrice = costPerUnit;
+                    return updatedProducts;
+                } else {
+                    const newProduct: PinProduct = {
+                        id: bomUsed.productSku,
+                        name: bomUsed.productName,
+                        sku: bomUsed.productSku,
+                        stock: orderToUpdate.quantityProduced,
+                        costPrice: costPerUnit,
+                        sellingPrice: Math.round((costPerUnit * 1.4) / 1000) * 1000, // Default 40% markup
+                    };
+                    return [newProduct, ...prev];
+                }
+            });
+        }
+    }
+
+    // Update the order status
+    setProductionOrders(prevOrders =>
+        prevOrders.map(o =>
+            o.id === orderId ? { ...o, status: newStatus } : o
+        )
+    );
+  };
+  
+  const updatePinProduct = (updatedProduct: PinProduct) => {
+    setPinProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
+  };
+
+  const handlePinSale = (saleData: Omit<PinSale, 'id' | 'date' | 'userId' | 'userName'>) => {
+    if (!currentUser) return;
+
+    const newSale: PinSale = {
+        id: `PIN-S-${Date.now()}`,
+        date: new Date().toISOString(),
+        userId: currentUser.id,
+        userName: currentUser.name,
+        ...saleData
+    };
+    setPinSales(prev => [newSale, ...prev]);
+
+    // Update product stock
+    setPinProducts(prev => {
+        const stockUpdates = new Map<string, number>();
+        newSale.items.forEach(item => {
+            stockUpdates.set(item.productId, item.quantity);
+        });
+        return prev.map(p => {
+            if (stockUpdates.has(p.id)) {
+                return { ...p, stock: p.stock - stockUpdates.get(p.id)! };
+            }
+            return p;
+        });
+    });
+
+    // Create financial transaction
+    const newCashTx: CashTransaction = {
+        id: `CT-${newSale.id}`,
+        type: 'income',
+        date: newSale.date,
+        amount: newSale.total,
+        contact: { id: newSale.customer.id || `PIN-CUST-${Date.now()}`, name: newSale.customer.name },
+        notes: `Thanh toán cho đơn hàng PIN #${newSale.id}`,
+        paymentSourceId: newSale.paymentMethod,
+        branchId: currentBranchId, // Assuming PIN sales affect the current branch's cashflow
+        saleId: newSale.id,
+    };
+    setCashTransactions(prev => [newCashTx, ...prev]);
+
+    // Update payment source balance
+    setPaymentSources(prev => prev.map(ps => {
+        if (ps.id === newSale.paymentMethod) {
+            const newBalance = { ...ps.balance };
+            newBalance[currentBranchId] = (newBalance[currentBranchId] || 0) + newSale.total;
+            return { ...ps, balance: newBalance };
+        }
+        return ps;
+    }));
+  };
+
+
+  if (!isAuthenticated || !currentUser) {
+    return <Login onLogin={handleLogin} />;
+  }
+  
+  if (!selectedApp) {
+    return <AppSelector onSelectApp={setSelectedApp} onLogout={handleLogout} currentUser={currentUser} />;
+  }
+  
+  const userDepartments = currentUser.departmentIds.map(id => departments.find(d => d.id === id)).filter((d): d is Department => !!d);
+  const isAdmin = userDepartments.some(d => d.name === 'Quản trị');
+
+  if (selectedApp === 'motocare') {
+    return (
+      <HashRouter>
+        <div className="flex h-screen bg-slate-50 dark:bg-slate-900 font-sans print:hidden">
+          <Sidebar 
+            currentUser={currentUser} 
+            users={users}
+            departments={departments}
+            setCurrentUser={setCurrentUser}
+            storeSettings={storeSettings}
+            setStoreSettings={setStoreSettings}
+            isOpen={isSidebarOpen}
+            setIsOpen={setIsSidebarOpen}
+            onLogout={handleLogout}
+            currentBranchId={currentBranchId}
+            setCurrentBranchId={setCurrentBranchId}
+            theme={theme}
+            setTheme={setTheme}
+            onSwitchApp={() => setSelectedApp(null)}
+          />
+          {/* Overlay for mobile */}
+          {isSidebarOpen && (
+               <div 
+                  onClick={() => setIsSidebarOpen(false)} 
+                  className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+                  aria-hidden="true"
+              ></div>
+          )}
+          <div className="flex flex-col flex-1 w-full min-w-0">
+            <Header onMenuClick={() => setIsSidebarOpen(true)} />
+            <main className="flex-1 overflow-y-auto p-6 lg:p-8">
+              <Routes>
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/dashboard" element={<Dashboard workOrders={workOrders} transactions={transactions} parts={parts} currentBranchId={currentBranchId} paymentSources={paymentSources} />} />
+                <Route path="/services" element={<ServiceManager 
+                  currentUser={currentUser} 
+                  workOrders={workOrders} 
+                  setWorkOrders={setWorkOrders} 
+                  parts={parts} 
+                  storeSettings={storeSettings} 
+                  currentBranchId={currentBranchId} 
+                  customers={customers} 
+                  setCustomers={setCustomers} 
+                  users={users} 
+                  departments={departments} 
+                  paymentSources={paymentSources}
+                  setPaymentSources={setPaymentSources}
+                  cashTransactions={cashTransactions}
+                  setCashTransactions={setCashTransactions}
+                />} />
+                <Route path="/sales" element={<SalesManager 
+                  currentUser={currentUser}
+                  workOrders={workOrders} 
+                  transactions={transactions} 
+                  parts={parts} 
+                  setParts={setParts} 
+                  setTransactions={setTransactions} 
+                  cartItems={cartItems}
+                  setCartItems={setCartItems}
+                  storeSettings={storeSettings}
+                  currentBranchId={currentBranchId}
+                  customers={customers}
+                  setCustomers={setCustomers}
+                  paymentSources={paymentSources}
+                  setPaymentSources={setPaymentSources}
+                  cashTransactions={cashTransactions}
+                  setCashTransactions={setCashTransactions}
+                />} />
+                <Route path="/inventory" element={<InventoryManager currentUser={currentUser} parts={parts} setParts={setParts} transactions={transactions} setTransactions={setTransactions} currentBranchId={currentBranchId} storeSettings={storeSettings} />} />
+                <Route path="/inventory/goods-receipt/new" element={<CreateGoodsReceipt 
+                    parts={parts}
+                    setParts={setParts}
+                    transactions={transactions}
+                    setTransactions={setTransactions}
+                    suppliers={suppliers}
+                    setSuppliers={setSuppliers}
+                    storeSettings={storeSettings}
+                    currentBranchId={currentBranchId}
+                    paymentSources={paymentSources}
+                    setPaymentSources={setPaymentSources}
+                    cashTransactions={cashTransactions}
+                    setCashTransactions={setCashTransactions}
+                />} />
+                <Route path="/customers" element={<CustomerManager customers={customers} setCustomers={setCustomers} />} />
+                <Route path="/cashflow" element={<CashflowManager 
+                  cashTransactions={cashTransactions}
+                  setCashTransactions={setCashTransactions}
+                  paymentSources={paymentSources}
+                  setPaymentSources={setPaymentSources}
+                  customers={customers}
+                  suppliers={suppliers}
+                  currentBranchId={currentBranchId}
+                  storeSettings={storeSettings}
+                />} />
+                <Route path="/assets" element={<AssetManager 
+                    fixedAssets={fixedAssets}
+                    setFixedAssets={setFixedAssets}
+                    capitalInvestments={capitalInvestments}
+                    setCapitalInvestments={setCapitalInvestments}
+                    storeSettings={storeSettings}
+                />} />
+                <Route path="/ai-assistant" element={<AiAssistant />} />
+                <Route path="/users" element={<UserManager currentUser={currentUser} users={users} setUsers={setUsers} departments={departments} setDepartments={setDepartments} />} />
+                <Route path="/reports/summary" element={
+                  isAdmin 
+                  ? <ExecutiveSummary
+                      workOrders={workOrders}
+                      transactions={transactions}
+                      parts={parts}
+                      storeSettings={storeSettings}
+                      fixedAssets={fixedAssets}
+                      capitalInvestments={capitalInvestments}
+                    />
+                  : <Navigate to="/dashboard" replace />
+                 } />
+                <Route path="/reports/revenue" element={<RevenueReport workOrders={workOrders} transactions={transactions} parts={parts} currentBranchId={currentBranchId} />} />
+                <Route path="/reports/inventory" element={<InventoryReport parts={parts} transactions={transactions} currentBranchId={currentBranchId} storeSettings={storeSettings} />} />
+              </Routes>
+            </main>
+          </div>
+        </div>
+      </HashRouter>
+    );
+  }
+
+  if (selectedApp === 'pincorp') {
+    return (
+        <PinCorpApp 
+            currentUser={currentUser}
+            materials={pinMaterials}
+            setMaterials={setPinMaterials}
+            boms={pinBOMs}
+            setBoms={setPinBOMs}
+            productionOrders={productionOrders}
+            addProductionOrder={addProductionOrder}
+            updateProductionOrder={updateProductionOrderStatus}
+            products={pinProducts}
+            updateProduct={updatePinProduct}
+            cartItems={pinCartItems}
+            setCartItems={setPinCartItems}
+            sales={pinSales}
+            handleSale={handlePinSale}
+            onSwitchApp={() => setSelectedApp(null)}
+            pinCustomers={pinCustomers}
+            setPinCustomers={setPinCustomers}
+        />
+    );
+  }
+
+  return null;
+};
+
+export default App;
